@@ -56,19 +56,28 @@ class HandLandmarkerNode(Node):
         # Detect hands
         result = self.detector.detect(mp_image)
 
-        # Publish PoseArray
+        # Publish PoseArray with hand ID
         pose_array = PoseArray()
         pose_array.header = msg.header
 
         if result.hand_landmarks:
-            for hand in result.hand_landmarks:
+            for hand_idx, hand in enumerate(result.hand_landmarks):
+                # Correct handedness access
+                if result.handedness and len(result.handedness) > hand_idx and len(result.handedness[hand_idx]) > 0:
+                    handedness = result.handedness[hand_idx][0].category_name
+                else:
+                    handedness = f"Hand_{hand_idx}"
+
                 for lm in hand:
                     pose = Pose()
                     pose.position.x = lm.x
                     pose.position.y = lm.y
                     pose.position.z = lm.z
                     pose.orientation.w = 1.0
+                    pose.orientation.x = 0.0 if handedness == "Left" else 1.0
                     pose_array.poses.append(pose)
+
+                self.get_logger().debug(f"Detected {handedness} hand with {len(hand)} landmarks")
 
         self.publisher.publish(pose_array)
 
@@ -76,13 +85,22 @@ class HandLandmarkerNode(Node):
         if self.debug and (time.time() - self.last_draw_time) >= 1.0 / self.publish_rate:
             annotated = frame.copy()
             h, w, _ = frame.shape
-            for hand in result.hand_landmarks:
-                # Draw landmarks
+            for hand_idx, hand in enumerate(result.hand_landmarks):
+                # Correct handedness access
+                if result.handedness and len(result.handedness) > hand_idx and len(result.handedness[hand_idx]) > 0:
+                    handedness = result.handedness[hand_idx][0].category_name
+                else:
+                    handedness = f"Hand_{hand_idx}"
+
+                # Color for connections only
+                link_color = (255, 0, 0) if handedness == "Left" else (0, 255, 0)  # Blue for left, Green for right
+
+                # Draw landmarks (markers) always red
                 for lm in hand:
                     cx, cy = int(lm.x * w), int(lm.y * h)
-                    cv2.circle(annotated, (cx, cy), 4, (0, 255, 0), -1)
+                    cv2.circle(annotated, (cx, cy), 4, (0, 0, 255), -1)  # Red markers
 
-                # Draw connections manually (Hand topology)
+                # Draw connections manually
                 connections = [
                     (0,1),(1,2),(2,3),(3,4),       # Thumb
                     (0,5),(5,6),(6,7),(7,8),       # Index
@@ -95,7 +113,18 @@ class HandLandmarkerNode(Node):
                     end = hand[end_idx]
                     x0, y0 = int(start.x * w), int(start.y * h)
                     x1, y1 = int(end.x * w), int(end.y * h)
-                    cv2.line(annotated, (x0, y0), (x1, y1), (0, 0, 255), 2)
+                    cv2.line(annotated, (x0, y0), (x1, y1), link_color, 2)
+
+                # Draw handedness label above wrist
+                cv2.putText(
+                    annotated,
+                    handedness,
+                    (int(hand[0].x * w), int(hand[0].y * h) - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7,
+                    link_color,
+                    2
+                )
 
             cv2.imshow("Hand Landmarks", annotated)
             cv2.waitKey(1)
