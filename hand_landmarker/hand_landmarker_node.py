@@ -12,12 +12,14 @@ from geometry_msgs.msg import Pose
 
 # Standard hand landmark connections
 HAND_CONNECTIONS = [
-    (0, 1), (1, 2), (2, 3), (3, 4),
-    (0, 5), (5, 6), (6, 7), (7, 8),
-    (0, 9), (9,10), (10,11), (11,12),
-    (0,13), (13,14), (14,15), (15,16),
-    (0,17), (17,18), (18,19), (19,20)
+    (0, 1), (1, 2), (2, 3), (3, 4),        # Thumb
+    (0, 5), (5, 6), (6, 7), (7, 8),        # Index finger + wrist to index MCP
+    (5, 9), (9, 10), (10, 11), (11, 12),   # Middle finger
+    (9, 13), (13, 14), (14, 15), (15, 16), # Ring finger
+    (0, 17), (13, 17), (17, 18), (18, 19), (19, 20)  # Pinky finger + wrist to pinky MCP
 ]
+
+
 
 class HandLandmarkerNode(Node):
     def __init__(self):
@@ -45,7 +47,7 @@ class HandLandmarkerNode(Node):
         # ROS setup
         self.bridge = CvBridge()
         self.latest_image = None
-        
+
         # Camera subscription (small queue to avoid lag buildup)
         self.sub_image = self.create_subscription(
             Image,
