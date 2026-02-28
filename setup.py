@@ -20,6 +20,7 @@ setup(
     entry_points={
         'console_scripts': [
             'hand_landmarker_node = hand_landmarker.hand_landmarker_node:main',
+            'landmarks_visualizer_node = hand_landmarker.landmarks_visualizer_node:main',
         ],
     },
 )

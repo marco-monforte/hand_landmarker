@@ -12,8 +12,7 @@
   <depend>geometry_msgs</depend>
   <depend>cv_bridge</depend>
   
-  <build_depend>hand_msgs</build_depend>
-  <exec_depend>hand_msgs</exec_depend>
+  <depend>hand_msgs</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
