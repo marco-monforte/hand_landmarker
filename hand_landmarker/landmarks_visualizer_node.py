@@ -22,20 +22,25 @@ def mean_safe(vector):
     return float(np.mean(vector)) if len(vector) > 0 else 0.0
 
 def get_color(value, mode="smooth"):
-    value = max(0, min(4095, value))
+    # ⚠️ Normalizza in modo robusto
+    MAX_TOUCH = 4095.0   # <-- metti un valore realistico per il tuo sensore
+    v = np.clip(value / MAX_TOUCH, 0.0, 1.0)
+
     if mode == "threshold":
-        if value < 1000:
-            return (0, 255, 0)
-        elif value < 2000:
-            return (0, 255, 255)
-        elif value < 3000:
-            return (0, 165, 255)
+        if v < 0.25:
+            return (0,255,0)
+        elif v < 0.5:
+            return (0,255,255)
+        elif v < 0.75:
+            return (0,165,255)
         else:
-            return (0, 0, 255)
-    hue = int((1.0 - value/4095.0) * 120)
-    hsv = np.uint8([[[hue, 255, 255]]])
-    bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)[0][0]
-    return int(bgr[0]), int(bgr[1]), int(bgr[2])
+            return (0,0,255)
+    elif mode == "smooth":
+        # Hue 60 (verde) → 0 (rosso)
+        hue = 60 * (1 - v)
+        hsv = np.uint8([[[hue, 255, 255]]])
+        bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)[0][0]
+        return (int(bgr[0]), int(bgr[1]), int(bgr[2]))
 
 class HandLandmarksVisualizer(Node):
     def __init__(self):
@@ -150,15 +155,17 @@ class HandLandmarksVisualizer(Node):
         cv2.imshow("Hand Visualizer", canvas)
         cv2.waitKey(1)
 
-    # Draw feedback colored hand
+    # Draw feedback colored hand (draw EVERYTHING)
     def draw_with_feedback(self, canvas, pts):
+
         f = self.filtered_feedback
         finger_map = {
-            "pinky": (17,18,19,20),
-            "ring": (13,14,15,16),
+            "pinky":  (17,18,19,20),
+            "ring":   (13,14,15,16),
             "middle": (9,10,11,12),
-            "index": (5,6,7,8)
+            "index":  (5,6,7,8)
         }
+
         for name, (mcp, pip, dip, tip) in finger_map.items():
             cv2.line(canvas, pts[mcp], pts[pip], get_color(f[f"{name}_palm"], self.color_mode), 3)
             cv2.line(canvas, pts[pip], pts[dip], get_color(f[f"{name}_top"], self.color_mode), 3)
@@ -175,7 +182,37 @@ class HandLandmarksVisualizer(Node):
         palm_links = [(0,5),(5,9),(9,13),(13,17),(17,0)]
         for a,b in palm_links:
             cv2.line(canvas, pts[a], pts[b], get_color(f["palm"], self.color_mode), 2)
+        cv2.line(canvas, pts[0], pts[1], (255, 0, 0), 2)
         cv2.circle(canvas, pts[0], 6, (255,255,255), -1)
+
+
+
+
+
+        # for name, (mcp, pip, dip, tip) in finger_map.items():
+        #     cv2.line(canvas, pts[mcp], pts[pip], get_color(f[f"{name}_palm"], self.color_mode), 3)
+        #     cv2.line(canvas, pts[pip], pts[dip], get_color(f[f"{name}_top"], self.color_mode), 3)
+        #     cv2.line(canvas, pts[dip], pts[tip], get_color(f[f"{name}_top"], self.color_mode), 3)
+        #     cv2.circle(canvas, pts[tip], 8, get_color(f[f"{name}_tip"], self.color_mode), -1)
+
+        # # Thumb
+        # cv2.line(canvas, pts[1], pts[2], get_color(f["thumb_palm"], self.color_mode), 3)
+        # cv2.line(canvas, pts[2], pts[3], get_color(f["thumb_middle"], self.color_mode), 3)
+        # cv2.line(canvas, pts[3], pts[4], get_color(f["thumb_top"], self.color_mode), 3)
+        # cv2.circle(canvas, pts[4], 8, get_color(f["thumb_tip"], self.color_mode), -1)
+
+        # # Palm loop
+        # palm_links = [(0,5),(5,9),(9,13),(13,17),(17,0)]
+        # for a,b in palm_links:
+        #     cv2.line(canvas, pts[a], pts[b], get_color(f["palm"], self.color_mode), 2)
+        # cv2.circle(canvas, pts[0], 6, (255,255,255), -1)
+
+
+
+
+
+
+
 
     # Draw color legend
     def draw_legend(self, canvas):
