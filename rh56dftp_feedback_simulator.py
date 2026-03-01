@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import math
 import os
 import shutil
 import time
@@ -30,37 +31,44 @@ def create_fake_feedback():
     msg.temperature = np.random.randint(20, 50, 6, dtype=np.uint8)
 
     # Funzione helper per touch sensor
-    def random_touch(size):
-        return np.random.randint(0, 4096, size, dtype=np.int16)
+    def random_touch(size, phase_offset=0.0):
+        """
+        Genera valori touch che oscillano su tutto il range 0–4095
+        nel tempo, così il visualizer smooth funziona bene.
+        """
 
-    # Pinky
-    msg.pinky_tip_touch = random_touch(9)
-    msg.pinky_top_touch = random_touch(96)
-    msg.pinky_palm_touch = random_touch(80)
+        t = time.time()
+        # Oscillazione lenta sinusoidale 0→1
+        base = (math.sin(t * 0.5 + phase_offset) + 1) / 2.0
+        # Scala su tutto il range
+        value = int(base * 4095)
+        # Aggiungi rumore leggero
+        noise = np.random.randint(-200, 200, size, dtype=np.int16)
+        arr = np.full(size, value, dtype=np.int16) + noise
+        return np.clip(arr, 0, 4095).astype(np.int16)
+    
+    msg.pinky_tip_touch   = random_touch(9, 0.0)
+    msg.pinky_top_touch   = random_touch(96, 0.5)
+    msg.pinky_palm_touch  = random_touch(80, 1.0)
 
-    # Ring
-    msg.ring_tip_touch = random_touch(9)
-    msg.ring_top_touch = random_touch(96)
-    msg.ring_palm_touch = random_touch(80)
+    msg.ring_tip_touch    = random_touch(9, 1.5)
+    msg.ring_top_touch    = random_touch(96, 2.0)
+    msg.ring_palm_touch   = random_touch(80, 2.5)
 
-    # Middle
-    msg.middle_tip_touch = random_touch(9)
-    msg.middle_top_touch = random_touch(96)
-    msg.middle_palm_touch = random_touch(80)
+    msg.middle_tip_touch  = random_touch(9, 3.0)
+    msg.middle_top_touch  = random_touch(96, 3.5)
+    msg.middle_palm_touch = random_touch(80, 4.0)
 
-    # Index
-    msg.index_tip_touch = random_touch(9)
-    msg.index_top_touch = random_touch(96)
-    msg.index_palm_touch = random_touch(80)
+    msg.index_tip_touch   = random_touch(9, 4.5)
+    msg.index_top_touch   = random_touch(96, 5.0)
+    msg.index_palm_touch  = random_touch(80, 5.5)
 
-    # Thumb
-    msg.thumb_tip_touch = random_touch(9)
-    msg.thumb_top_touch = random_touch(96)
-    msg.thumb_middle_touch = random_touch(9)
-    msg.thumb_palm_touch = random_touch(96)
+    msg.thumb_tip_touch   = random_touch(9, 6.0)
+    msg.thumb_top_touch   = random_touch(96, 6.5)
+    msg.thumb_middle_touch= random_touch(9, 7.0)
+    msg.thumb_palm_touch  = random_touch(96, 7.5)
 
-    # Palm
-    msg.palm_touch = random_touch(112)
+    msg.palm_touch        = random_touch(112, 8.0)
 
     return msg
 
