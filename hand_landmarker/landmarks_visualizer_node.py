@@ -23,7 +23,7 @@ def mean_safe(vector):
 
 def get_color(value, mode="smooth"):
     # ⚠️ Normalizza in modo robusto
-    MAX_TOUCH = 4095.0   # <-- metti un valore realistico per il tuo sensore
+    MAX_TOUCH = 300.0   # <-- metti un valore realistico per il tuo sensore
     v = np.clip(value / MAX_TOUCH, 0.0, 1.0)
 
     if mode == "threshold":
@@ -80,7 +80,7 @@ class HandLandmarksVisualizer(Node):
         if self.tactile_feedback:
             self.create_subscription(
                 RH56DFTPFeedback,
-                "/rh56_feedback",
+                "/rh56dftp/feedback",
                 self.feedback_callback,
                 10
             )
@@ -99,23 +99,41 @@ class HandLandmarksVisualizer(Node):
 
     def feedback_callback(self, msg):
         raw_data = {
-            "pinky_tip": mean_safe(msg.pinky_tip_touch),
-            "pinky_top": mean_safe(msg.pinky_top_touch),
-            "pinky_palm": mean_safe(msg.pinky_palm_touch),
-            "ring_tip": mean_safe(msg.ring_tip_touch),
-            "ring_top": mean_safe(msg.ring_top_touch),
-            "ring_palm": mean_safe(msg.ring_palm_touch),
-            "middle_tip": mean_safe(msg.middle_tip_touch),
-            "middle_top": mean_safe(msg.middle_top_touch),
-            "middle_palm": mean_safe(msg.middle_palm_touch),
-            "index_tip": mean_safe(msg.index_tip_touch),
-            "index_top": mean_safe(msg.index_top_touch),
-            "index_palm": mean_safe(msg.index_palm_touch),
-            "thumb_tip": mean_safe(msg.thumb_tip_touch),
-            "thumb_top": mean_safe(msg.thumb_top_touch),
-            "thumb_middle": mean_safe(msg.thumb_middle_touch),
-            "thumb_palm": mean_safe(msg.thumb_palm_touch),
-            "palm": mean_safe(msg.palm_touch)
+            "pinky_tip": np.max(msg.pinky_tip_touch),
+            "pinky_top": np.max(msg.pinky_top_touch),
+            "pinky_palm": np.max(msg.pinky_palm_touch),
+            "ring_tip": np.max(msg.ring_tip_touch),
+            "ring_top": np.max(msg.ring_top_touch),
+            "ring_palm": np.max(msg.ring_palm_touch),
+            "middle_tip": np.max(msg.middle_tip_touch),
+            "middle_top": np.max(msg.middle_top_touch),
+            "middle_palm": np.max(msg.middle_palm_touch),
+            "index_tip": np.max(msg.index_tip_touch),
+            "index_top": np.max(msg.index_top_touch),
+            "index_palm": np.max(msg.index_palm_touch),
+            "thumb_tip": np.max(msg.thumb_tip_touch),
+            "thumb_top": np.max(msg.thumb_top_touch),
+            "thumb_middle": np.max(msg.thumb_middle_touch),
+            "thumb_palm": np.max(msg.thumb_palm_touch),
+            "palm": np.max(msg.palm_touch)
+
+            # "pinky_tip": mean_safe(msg.pinky_tip_touch),
+            # "pinky_top": mean_safe(msg.pinky_top_touch),
+            # "pinky_palm": mean_safe(msg.pinky_palm_touch),
+            # "ring_tip": mean_safe(msg.ring_tip_touch),
+            # "ring_top": mean_safe(msg.ring_top_touch),
+            # "ring_palm": mean_safe(msg.ring_palm_touch),
+            # "middle_tip": mean_safe(msg.middle_tip_touch),
+            # "middle_top": mean_safe(msg.middle_top_touch),
+            # "middle_palm": mean_safe(msg.middle_palm_touch),
+            # "index_tip": mean_safe(msg.index_tip_touch),
+            # "index_top": mean_safe(msg.index_top_touch),
+            # "index_palm": mean_safe(msg.index_palm_touch),
+            # "thumb_tip": mean_safe(msg.thumb_tip_touch),
+            # "thumb_top": mean_safe(msg.thumb_top_touch),
+            # "thumb_middle": mean_safe(msg.thumb_middle_touch),
+            # "thumb_palm": mean_safe(msg.thumb_palm_touch),
+            # "palm": mean_safe(msg.palm_touch)
         }
         for key, value in raw_data.items():
             prev = self.filtered_feedback[key]
@@ -220,9 +238,9 @@ class HandLandmarksVisualizer(Node):
         y0 = 50
         height = 400
         for i in range(height):
-            value = 4095*(1 - i/height)
+            value = 300*(1 - i/height)
             cv2.line(canvas, (x0, y0+i), (x0+40, y0+i), get_color(value, self.color_mode), 1)
-        cv2.putText(canvas, "4095", (x0-45, y0+10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255,255,255), 1)
+        cv2.putText(canvas, "300", (x0-45, y0+10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255,255,255), 1)
         cv2.putText(canvas, "0", (x0-45, y0+height), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255,255,255), 1)
 
 
