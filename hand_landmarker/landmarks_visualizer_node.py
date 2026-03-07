@@ -6,7 +6,6 @@ from cv_bridge import CvBridge
 import cv2
 import numpy as np
 from hand_msgs.msg import HandLandmarks, RH56DFTPFeedback
-from geometry_msgs.msg import Pose
 from collections import defaultdict
 
 # Standard hand landmark connections
@@ -18,12 +17,10 @@ HAND_CONNECTIONS = [
     (0, 17), (13, 17), (17, 18), (18, 19), (19, 20)
 ]
 
-def mean_safe(vector):
-    return float(np.mean(vector)) if len(vector) > 0 else 0.0
+MAX_TOUCH = 800.0   # Upper limit for touch sensors
 
 def get_color(value, mode="smooth"):
-    # ⚠️ Normalizza in modo robusto
-    MAX_TOUCH = 300.0   # <-- metti un valore realistico per il tuo sensore
+    # ⚠️ Normalize in a robust way
     v = np.clip(value / MAX_TOUCH, 0.0, 1.0)
 
     if mode == "threshold":
@@ -36,7 +33,7 @@ def get_color(value, mode="smooth"):
         else:
             return (0,0,255)
     elif mode == "smooth":
-        # Hue 60 (verde) → 0 (rosso)
+        # Hue 60 (green) → 0 (red)
         hue = 60 * (1 - v)
         hsv = np.uint8([[[hue, 255, 255]]])
         bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)[0][0]
@@ -51,11 +48,15 @@ class HandLandmarksVisualizer(Node):
         self.declare_parameter("color_mode", "smooth")  # "smooth" or "threshold"
         self.declare_parameter("ema_alpha", 0.3)
         self.declare_parameter("camera_topic", "/camera/color/image_raw")
+        self.declare_parameter("feedback_topic", "/rh56dftp/feedback")
+        self.declare_parameter("controlled_hand", "left")  # "left", "right" or "both"
 
         self.tactile_feedback = self.get_parameter("tactile_feedback").value
         self.color_mode = self.get_parameter("color_mode").value
         self.ema_alpha = self.get_parameter("ema_alpha").value
         self.camera_topic = self.get_parameter("camera_topic").value
+        self.feedback_topic = self.get_parameter("feedback_topic").value
+        self.controlled_hand = self.get_parameter("controlled_hand").value
 
         # ROS setup
         self.bridge = CvBridge()
@@ -80,7 +81,7 @@ class HandLandmarksVisualizer(Node):
         if self.tactile_feedback:
             self.create_subscription(
                 RH56DFTPFeedback,
-                "/rh56dftp/feedback",
+                self.feedback_topic,
                 self.feedback_callback,
                 10
             )
@@ -116,25 +117,8 @@ class HandLandmarksVisualizer(Node):
             "thumb_middle": np.max(msg.thumb_middle_touch),
             "thumb_palm": np.max(msg.thumb_palm_touch),
             "palm": np.max(msg.palm_touch)
-
-            # "pinky_tip": mean_safe(msg.pinky_tip_touch),
-            # "pinky_top": mean_safe(msg.pinky_top_touch),
-            # "pinky_palm": mean_safe(msg.pinky_palm_touch),
-            # "ring_tip": mean_safe(msg.ring_tip_touch),
-            # "ring_top": mean_safe(msg.ring_top_touch),
-            # "ring_palm": mean_safe(msg.ring_palm_touch),
-            # "middle_tip": mean_safe(msg.middle_tip_touch),
-            # "middle_top": mean_safe(msg.middle_top_touch),
-            # "middle_palm": mean_safe(msg.middle_palm_touch),
-            # "index_tip": mean_safe(msg.index_tip_touch),
-            # "index_top": mean_safe(msg.index_top_touch),
-            # "index_palm": mean_safe(msg.index_palm_touch),
-            # "thumb_tip": mean_safe(msg.thumb_tip_touch),
-            # "thumb_top": mean_safe(msg.thumb_top_touch),
-            # "thumb_middle": mean_safe(msg.thumb_middle_touch),
-            # "thumb_palm": mean_safe(msg.thumb_palm_touch),
-            # "palm": mean_safe(msg.palm_touch)
         }
+
         for key, value in raw_data.items():
             prev = self.filtered_feedback[key]
             self.filtered_feedback[key] = self.ema_alpha * value + (1 - self.ema_alpha) * prev
@@ -203,44 +187,15 @@ class HandLandmarksVisualizer(Node):
         cv2.line(canvas, pts[0], pts[1], (255, 0, 0), 2)
         cv2.circle(canvas, pts[0], 6, (255,255,255), -1)
 
-
-
-
-
-        # for name, (mcp, pip, dip, tip) in finger_map.items():
-        #     cv2.line(canvas, pts[mcp], pts[pip], get_color(f[f"{name}_palm"], self.color_mode), 3)
-        #     cv2.line(canvas, pts[pip], pts[dip], get_color(f[f"{name}_top"], self.color_mode), 3)
-        #     cv2.line(canvas, pts[dip], pts[tip], get_color(f[f"{name}_top"], self.color_mode), 3)
-        #     cv2.circle(canvas, pts[tip], 8, get_color(f[f"{name}_tip"], self.color_mode), -1)
-
-        # # Thumb
-        # cv2.line(canvas, pts[1], pts[2], get_color(f["thumb_palm"], self.color_mode), 3)
-        # cv2.line(canvas, pts[2], pts[3], get_color(f["thumb_middle"], self.color_mode), 3)
-        # cv2.line(canvas, pts[3], pts[4], get_color(f["thumb_top"], self.color_mode), 3)
-        # cv2.circle(canvas, pts[4], 8, get_color(f["thumb_tip"], self.color_mode), -1)
-
-        # # Palm loop
-        # palm_links = [(0,5),(5,9),(9,13),(13,17),(17,0)]
-        # for a,b in palm_links:
-        #     cv2.line(canvas, pts[a], pts[b], get_color(f["palm"], self.color_mode), 2)
-        # cv2.circle(canvas, pts[0], 6, (255,255,255), -1)
-
-
-
-
-
-
-
-
     # Draw color legend
     def draw_legend(self, canvas):
         x0 = canvas.shape[1]-50
         y0 = 50
         height = 400
         for i in range(height):
-            value = 300*(1 - i/height)
+            value = MAX_TOUCH*(1 - i/height)
             cv2.line(canvas, (x0, y0+i), (x0+40, y0+i), get_color(value, self.color_mode), 1)
-        cv2.putText(canvas, "300", (x0-45, y0+10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255,255,255), 1)
+        cv2.putText(canvas, str(MAX_TOUCH), (x0-45, y0+10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255,255,255), 1)
         cv2.putText(canvas, "0", (x0-45, y0+height), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255,255,255), 1)
 
 
