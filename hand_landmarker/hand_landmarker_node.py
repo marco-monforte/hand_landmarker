@@ -12,13 +12,12 @@ from geometry_msgs.msg import Pose
 
 # Standard hand landmark connections
 HAND_CONNECTIONS = [
-    (0, 1), (1, 2), (2, 3), (3, 4),        # Thumb
-    (0, 5), (5, 6), (6, 7), (7, 8),        # Index finger + wrist to index MCP
-    (5, 9), (9, 10), (10, 11), (11, 12),   # Middle finger
-    (9, 13), (13, 14), (14, 15), (15, 16), # Ring finger
-    (0, 17), (13, 17), (17, 18), (18, 19), (19, 20)  # Pinky finger + wrist to pinky MCP
+    (0, 1), (1, 2), (2, 3), (3, 4),                     # Thumb
+    (0, 5), (5, 6), (6, 7), (7, 8),                     # Index finger + wrist to index MCP
+    (5, 9), (9, 10), (10, 11), (11, 12),                # Middle finger
+    (9, 13), (13, 14), (14, 15), (15, 16),              # Ring finger
+    (0, 17), (13, 17), (17, 18), (18, 19), (19, 20)     # Pinky finger + wrist to pinky MCP
 ]
-
 
 
 class HandLandmarkerNode(Node):
@@ -28,7 +27,7 @@ class HandLandmarkerNode(Node):
         # Parameters
         self.declare_parameter('model_path', '/root/ros2_ws/src/hand_landmarker/models/hand_landmarker.task')
         self.declare_parameter('debug', False)
-        self.declare_parameter('publish_rate', 30.0)
+        self.declare_parameter('publish_rate', 60.0)
         self.declare_parameter('camera_topic', '/camera/color/image_raw')
 
         model_path = self.get_parameter('model_path').value
