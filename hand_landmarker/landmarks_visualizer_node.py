@@ -20,6 +20,7 @@ HAND_CONNECTIONS = [
 MAX_TOUCH = 800.0
 
 def get_color(value, hand):
+    """Return BGR color based on pressure value and hand."""
     v = np.clip(value / MAX_TOUCH, 0.0, 1.0)
     if hand == "left":
         if v < 0.5:
@@ -29,7 +30,7 @@ def get_color(value, hand):
             r = 255
             g = int((1-2*(v-0.5))*255)
         b = 0
-    else:  # right
+    else:
         if v < 0.5:
             g = int(2*v*255)
             b = 255
@@ -40,33 +41,36 @@ def get_color(value, hand):
     return (b,g,r)
 
 class HandLandmarksVisualizer(Node):
-
     def __init__(self):
         super().__init__("hand_landmarks_visualizer")
 
         # Parameters
-        self.declare_parameter("controlled_hand","left")
+        self.declare_parameter("controlled_hand","both")
         self.declare_parameter("ema_alpha",0.3)
+        self.declare_parameter("landmark_timeout",0.1)
         self.declare_parameter("camera_topic","/camera/color/image_raw")
         self.declare_parameter("feedback_topic","/rh56dftp/feedback")
 
         self.controlled_hand = self.get_parameter("controlled_hand").value.lower()
         self.ema_alpha = self.get_parameter("ema_alpha").value
+        self.landmark_timeout = self.get_parameter("landmark_timeout").value
         camera_topic = self.get_parameter("camera_topic").value
         feedback_topic = self.get_parameter("feedback_topic").value
 
         self.bridge = CvBridge()
         self.latest_image = None
 
-        # Store the last received landmarks/feedback for both hands
+        # Hand data
         self.landmarks = {"left": None, "right": None}
         self.feedback = {"left": defaultdict(float), "right": defaultdict(float)}
+        self.last_landmark_time = {"left": 0.0, "right": 0.0}
 
-        # Subscriptions
+        # ROS subscriptions
         self.create_subscription(Image, camera_topic, self.image_callback, 1)
         self.create_subscription(HandLandmarks, "/hand_landmarks", self.landmarks_callback, 10)
         self.create_subscription(RH56DFTPFeedback, feedback_topic, self.feedback_callback, 10)
 
+        # Timer
         self.timer = self.create_timer(0.03, self.render)
         self.get_logger().info("Hand Landmarks Visualizer started")
 
@@ -78,16 +82,17 @@ class HandLandmarksVisualizer(Node):
 
     def landmarks_callback(self, msg):
         hand_id = msg.hand_id.lower()
+
         if "left" in hand_id:
             hand = "left"
         elif "right" in hand_id:
             hand = "right"
         else:
             return
-
-        # Store latest message for this hand
+        
         self.landmarks[hand] = msg
-
+        self.last_landmark_time[hand] = self.get_clock().now().nanoseconds * 1e-9
+    
     def feedback_callback(self, msg):
         hand_id = msg.hand_id.lower()
         if "left" in hand_id:
@@ -118,19 +123,20 @@ class HandLandmarksVisualizer(Node):
         }
 
         fb = self.feedback[hand]
-        for k, v in raw.items():
+        for k,v in raw.items():
             fb[k] = self.ema_alpha*v + (1-self.ema_alpha)*fb[k]
 
     # --------------------------
-    # Rendering helpers
+    # Helpers
     # --------------------------
     def compute_points(self, landmarks, canvas):
-        h, w = canvas.shape[:2]
+        h,w = canvas.shape[:2]
         return [(int(lm.position.x*w), int(lm.position.y*h)) for lm in landmarks]
 
     def draw_hand(self, canvas, pts, hand):
         fb = self.feedback[hand]
         def c(v): return get_color(v, hand)
+
         finger_map = {
             "pinky": (17,18,19,20),
             "ring": (13,14,15,16),
@@ -138,25 +144,33 @@ class HandLandmarksVisualizer(Node):
             "index": (5,6,7,8)
         }
 
+        # Fingers + fingertips (glowing)
         for name,(mcp,pip,dip,tip) in finger_map.items():
             cv2.line(canvas, pts[mcp], pts[pip], c(fb[f"{name}_palm"]), 3)
             cv2.line(canvas, pts[pip], pts[dip], c(fb[f"{name}_top"]), 3)
             cv2.line(canvas, pts[dip], pts[tip], c(fb[f"{name}_top"]), 3)
-            cv2.circle(canvas, pts[tip], 8, c(fb[f"{name}_tip"]), -1)
 
+            radius = int(8 + fb[f"{name}_tip"]/MAX_TOUCH * 12)
+            cv2.circle(canvas, pts[tip], radius, c(fb[f"{name}_tip"]), -1)
+
+        # Thumb
         cv2.line(canvas, pts[1], pts[2], c(fb["thumb_palm"]), 3)
         cv2.line(canvas, pts[2], pts[3], c(fb["thumb_middle"]), 3)
         cv2.line(canvas, pts[3], pts[4], c(fb["thumb_top"]), 3)
-        cv2.circle(canvas, pts[4], 8, c(fb["thumb_tip"]), -1)
+        cv2.circle(canvas, pts[4], int(8 + fb["thumb_tip"]/MAX_TOUCH*12), c(fb["thumb_tip"]), -1)
 
+        # Palm connections
         palm_links = [(0,1),(0,5),(5,9),(9,13),(13,17),(17,0)]
         for a,b in palm_links:
             cv2.line(canvas, pts[a], pts[b], c(fb["palm"]), 2)
         cv2.circle(canvas, pts[0], 7, (255,255,255), -1)
 
+    # --------------------------
+    # Legends
+    # --------------------------
     def draw_legend(self, canvas, x0, y0, hand):
         height = 300
-        width = 20
+        width = 10  # half-width
         for i in range(height):
             value = MAX_TOUCH*(1-i/height)
             cv2.line(canvas, (x0,y0+i), (x0+width, y0+i), get_color(value, hand), 1)
@@ -166,26 +180,27 @@ class HandLandmarksVisualizer(Node):
     def draw_legends(self, canvas):
         h,w = canvas.shape[:2]
         self.draw_legend(canvas, 10, 50, "left")
-        self.draw_legend(canvas, w-30, 50, "right")
+        self.draw_legend(canvas, w-20, 50, "right")
 
     # --------------------------
     # Main render
     # --------------------------
     def render(self):
+        now = self.get_clock().now().nanoseconds * 1e-9
+        for hand in ["left","right"]:
+            if now - self.last_landmark_time[hand] > self.landmark_timeout:
+                self.landmarks[hand] = None
+                
         if self.latest_image is None:
             canvas = np.zeros((720,1280,3), dtype=np.uint8)
         else:
             canvas = self.bridge.imgmsg_to_cv2(self.latest_image, desired_encoding="bgr8")
 
-        hands_to_draw = []
-        if self.controlled_hand == "both":
-            hands_to_draw = ["left","right"]
-        else:
-            hands_to_draw = [self.controlled_hand]
+        hands_to_draw = ["left","right"] if self.controlled_hand=="both" else [self.controlled_hand]
 
         for hand in hands_to_draw:
             msg = self.landmarks.get(hand)
-            if msg is None or len(msg.landmarks) != 21:
+            if msg is None or len(msg.landmarks)!=21:
                 continue
             pts = self.compute_points(msg.landmarks, canvas)
             self.draw_hand(canvas, pts, hand)
