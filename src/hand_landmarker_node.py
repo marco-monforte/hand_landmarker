@@ -29,17 +29,28 @@ class HandLandmarkerNode(Node):
         self.declare_parameter('debug', False)
         self.declare_parameter('publish_rate', 60.0)
         self.declare_parameter('camera_topic', '/camera/color/image_raw')
+        self.declare_parameter('num_hands', 2)
+        self.declare_parameter('min_hand_detection_confidence', 50.0)
+        self.declare_parameter('min_hand_presence_confidence', 50.0)
+        self.declare_parameter('min_tracking_confidence', 50.0)
 
         model_path = self.get_parameter('model_path').value
         self.debug = self.get_parameter('debug').value
         self.publish_rate = self.get_parameter('publish_rate').value
         self.camera_topic = self.get_parameter('camera_topic').value
+        num_hands = self.get_parameter('num_hands').value
+        min_hand_detection_confidence = self.get_parameter('min_hand_detection_confidence').value
+        min_hand_presence_confidence = self.get_parameter('min_hand_presence_confidence').value
+        min_tracking_confidence = self.get_parameter('min_tracking_confidence').value
 
         # MediaPipe setup
         base_options = python.BaseOptions(model_asset_path=model_path)
         options = vision.HandLandmarkerOptions(
             base_options=base_options,
-            num_hands=2
+            num_hands=num_hands,
+            min_hand_detection_confidence=min_hand_detection_confidence,
+            min_hand_presence_confidence=min_hand_presence_confidence,
+            min_tracking_confidence=min_tracking_confidence,
         )
         self.detector = vision.HandLandmarker.create_from_options(options)
 
