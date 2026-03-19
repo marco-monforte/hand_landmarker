@@ -13,7 +13,7 @@
 
 using std::placeholders::_1;
 
-static const float MAX_TOUCH = 800.0;
+static const float MAX_TOUCH = 200.0;
 
 cv::Scalar getColor(float value, const std::string &hand)
 {

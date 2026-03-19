@@ -28,11 +28,11 @@ class HandLandmarkerNode(Node):
         self.declare_parameter('model_path', '/root/ros2_ws/src/hand_landmarker/models/hand_landmarker.task')
         self.declare_parameter('debug', False)
         self.declare_parameter('publish_rate', 60.0)
-        self.declare_parameter('camera_topic', '/camera/color/image_raw')
+        self.declare_parameter('camera_topic', '/camera/camera/color/image_raw')
         self.declare_parameter('num_hands', 2)
-        self.declare_parameter('min_hand_detection_confidence', 50.0)
-        self.declare_parameter('min_hand_presence_confidence', 50.0)
-        self.declare_parameter('min_tracking_confidence', 50.0)
+        self.declare_parameter('min_hand_detection_confidence', 0.50)
+        self.declare_parameter('min_hand_presence_confidence', 0.50)
+        self.declare_parameter('min_tracking_confidence', 0.50)
 
         model_path = self.get_parameter('model_path').value
         self.debug = self.get_parameter('debug').value
