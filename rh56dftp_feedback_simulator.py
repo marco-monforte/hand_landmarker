@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import math
 import os
+import random
 import shutil
 import time
 import numpy as np
@@ -22,6 +23,7 @@ def create_fake_feedback():
     msg.header = Header(stamp=Time(sec=sec, nanosec=nsec), frame_id='')
 
     # valori di esempio per posizione, angolo, forza, corrente ecc.
+    msg.hand_id = random.choice(["left", "right"])
     msg.position = np.random.randint(0, 1000, 6, dtype=np.int16)
     msg.angle = np.random.randint(0, 1000, 6, dtype=np.int16)
     msg.force = np.random.randint(0, 1000, 6, dtype=np.int16)
@@ -37,15 +39,18 @@ def create_fake_feedback():
         nel tempo, così il visualizer smooth funziona bene.
         """
 
+        max_value = 200         # 4095
+        max_noise_value = max_value * 0.1
+        
         t = time.time()
         # Oscillazione lenta sinusoidale 0→1
         base = (math.sin(t * 0.5 + phase_offset) + 1) / 2.0
         # Scala su tutto il range
-        value = int(base * 4095)
+        value = int(base * max_value)
         # Aggiungi rumore leggero
-        noise = np.random.randint(-200, 200, size, dtype=np.int16)
+        noise = np.random.randint(-max_noise_value, max_noise_value, size, dtype=np.int16)
         arr = np.full(size, value, dtype=np.int16) + noise
-        return np.clip(arr, 0, 4095).astype(np.int16)
+        return np.clip(arr, 0, max_value).astype(np.int16)
     
     msg.pinky_tip_touch   = random_touch(9, 0.0)
     msg.pinky_top_touch   = random_touch(96, 0.5)
@@ -89,7 +94,7 @@ def main():
     writer = SequentialWriter()
     writer.open(storage_options, converter_options)
 
-    topic_name = '/rh56_feedback'
+    topic_name = '/rh56dftp/feedback'
     topic_type = 'hand_msgs/msg/RH56DFTPFeedback'
     metadata = TopicMetadata(name=topic_name, type=topic_type, serialization_format='cdr')
     writer.create_topic(metadata)
