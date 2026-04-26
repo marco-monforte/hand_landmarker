@@ -130,36 +130,52 @@ private:
         return *std::max_element(v.begin(), v.end());
     }
 
+    template<typename T>
+    float maxArray(const T &arr)
+    {
+        if (arr.empty())
+            return 0.0f;
+
+        return static_cast<float>(*std::max_element(arr.begin(), arr.end()));
+    }
+
     void feedbackCallback(const hand_msgs::msg::RH56DFTPFeedback::SharedPtr msg)
     {
         std::string hand = parseHand(msg->hand_id);
-        if(hand.empty()) return;
+
+        if (hand.empty())
+            return;
 
         auto &fb = feedback_[hand];
 
-        std::map<std::string,float> raw{
-            {"pinky_tip", maxVec(std::vector<float>(msg->pinky_tip_touch.begin(), msg->pinky_tip_touch.end()))},
-            {"pinky_top", maxVec(std::vector<float>(msg->pinky_top_touch.begin(), msg->pinky_top_touch.end()))},
-            {"pinky_palm", maxVec(std::vector<float>(msg->pinky_palm_touch.begin(), msg->pinky_palm_touch.end()))},
-            {"ring_tip", maxVec(std::vector<float>(msg->ring_tip_touch.begin(), msg->ring_tip_touch.end()))},
-            {"ring_top", maxVec(std::vector<float>(msg->ring_top_touch.begin(), msg->ring_top_touch.end()))},
-            {"ring_palm", maxVec(std::vector<float>(msg->ring_palm_touch.begin(), msg->ring_palm_touch.end()))},
-            {"middle_tip", maxVec(std::vector<float>(msg->middle_tip_touch.begin(), msg->middle_tip_touch.end()))},
-            {"middle_top", maxVec(std::vector<float>(msg->middle_top_touch.begin(), msg->middle_top_touch.end()))},
-            {"middle_palm", maxVec(std::vector<float>(msg->middle_palm_touch.begin(), msg->middle_palm_touch.end()))},
-            {"index_tip", maxVec(std::vector<float>(msg->index_tip_touch.begin(), msg->index_tip_touch.end()))},
-            {"index_top", maxVec(std::vector<float>(msg->index_top_touch.begin(), msg->index_top_touch.end()))},
-            {"index_palm", maxVec(std::vector<float>(msg->index_palm_touch.begin(), msg->index_palm_touch.end()))},
-            {"thumb_tip", maxVec(std::vector<float>(msg->thumb_tip_touch.begin(), msg->thumb_tip_touch.end()))},
-            {"thumb_top", maxVec(std::vector<float>(msg->thumb_top_touch.begin(), msg->thumb_top_touch.end()))},
-            {"thumb_middle", maxVec(std::vector<float>(msg->thumb_middle_touch.begin(), msg->thumb_middle_touch.end()))},
-            {"thumb_palm", maxVec(std::vector<float>(msg->thumb_palm_touch.begin(), msg->thumb_palm_touch.end()))},
-            {"palm", maxVec(std::vector<float>(msg->palm_touch.begin(), msg->palm_touch.end()))}
+        std::map<std::string, float> raw{
+            {"pinky_tip", maxArray(msg->pinky_tip_touch)},
+            {"pinky_top", maxArray(msg->pinky_top_touch)},
+            {"pinky_palm", maxArray(msg->pinky_palm_touch)},
+
+            {"ring_tip", maxArray(msg->ring_tip_touch)},
+            {"ring_top", maxArray(msg->ring_top_touch)},
+            {"ring_palm", maxArray(msg->ring_palm_touch)},
+
+            {"middle_tip", maxArray(msg->middle_tip_touch)},
+            {"middle_top", maxArray(msg->middle_top_touch)},
+            {"middle_palm", maxArray(msg->middle_palm_touch)},
+
+            {"index_tip", maxArray(msg->index_tip_touch)},
+            {"index_top", maxArray(msg->index_top_touch)},
+            {"index_palm", maxArray(msg->index_palm_touch)},
+
+            {"thumb_tip", maxArray(msg->thumb_tip_touch)},
+            {"thumb_top", maxArray(msg->thumb_top_touch)},
+            {"thumb_middle", maxArray(msg->thumb_middle_touch)},
+            {"thumb_palm", maxArray(msg->thumb_palm_touch)},
+
+            {"palm", maxArray(msg->palm_touch)}
         };
 
-        for(auto &kv : raw)
+        for (auto &kv : raw)
         {
-            fb[kv.first] = ema_alpha_ * kv.second + (1 - ema_alpha_) * fb[kv.first];
+            fb[kv.first] = ema_alpha_ * kv.second + (1.0 - ema_alpha_) * fb[kv.first];
         }
     }
 
@@ -217,32 +233,105 @@ private:
         cv::circle(canvas, pts[0], 7, cv::Scalar(255,255,255), -1);
     }
 
+    void drawLegend(cv::Mat &canvas, int x0, int y0, const std::string &hand)
+    {
+        const int height = 300;
+        const int width = 20;
+
+        for (int i = 0; i < height; ++i)
+        {
+            float value = MAX_TOUCH * (1.0f - static_cast<float>(i) / height);
+
+            cv::line(
+                canvas,
+                cv::Point(x0, y0 + i),
+                cv::Point(x0 + width, y0 + i),
+                getColor(value, hand),
+                1);
+        }
+
+        cv::putText(
+            canvas,
+            std::to_string(static_cast<int>(MAX_TOUCH)),
+            cv::Point(x0 - 10, y0 - 10),
+            cv::FONT_HERSHEY_SIMPLEX,
+            0.6,
+            cv::Scalar(255, 255, 255),
+            1);
+
+        cv::putText(
+            canvas,
+            "0",
+            cv::Point(x0 - 10, y0 + height + 18),
+            cv::FONT_HERSHEY_SIMPLEX,
+            0.6,
+            cv::Scalar(255, 255, 255),
+            1);
+    }
+
+    void drawLegends(cv::Mat &canvas)
+    {
+        int w = canvas.cols;
+
+        if (controlled_hand_ == "left")
+        {
+            // Show only left legend
+            drawLegend(canvas, 15, 70, "left");
+        }
+        else if (controlled_hand_ == "right")
+        {
+            // Show only right legend
+            drawLegend(canvas, w - 35, 70, "right");
+        }
+        else if (controlled_hand_ == "both")
+        {
+            // Show both legends
+            drawLegend(canvas, 15, 70, "left");
+            drawLegend(canvas, w - 35, 70, "right");
+        }
+    }
+
     void render()
     {
         double t = now().seconds();
 
-        for(auto &h : {"left","right"})
+        for (const auto &h : {"left", "right"})
         {
-            if(last_landmark_time_.find(h) != last_landmark_time_.end())
-            {
-                if(t - last_landmark_time_[h] > landmark_timeout_)
-                    landmarks_[h].reset();
-            }
+            if (t - last_landmark_time_[h] > landmark_timeout_)
+                landmarks_[h].reset();
         }
 
-        cv::Mat canvas = latest_image_.empty() ? cv::Mat::zeros(720,1280,CV_8UC3) : latest_image_.clone();
+        cv::Mat canvas;
 
-        std::vector<std::string> hands = controlled_hand_ == "both" ? std::vector<std::string>{"left","right"} : std::vector<std::string>{controlled_hand_};
+        if (latest_image_.empty())
+            canvas = cv::Mat::zeros(720, 1280, CV_8UC3);
+        else
+            canvas = latest_image_.clone();
 
-        for(auto &h : hands)
+        std::vector<std::string> hands;
+
+        if (controlled_hand_ == "both")
+            hands = {"left", "right"};
+        else
+            hands = {controlled_hand_};
+
+        for (const auto &h : hands)
         {
             auto msg = landmarks_[h];
-            if(!msg) continue;
-            if(msg->landmarks.size() != 21) continue;
+
+            if (!msg)
+                continue;
+
+            if (msg->landmarks.size() != 21)
+                continue;
 
             auto pts = computePoints(msg->landmarks, canvas);
+
             drawHand(canvas, pts, h);
         }
+
+        // Draw color legends exactly like Python version
+        drawLegends(canvas);
 
         cv::imshow("Hand Visualizer", canvas);
         cv::waitKey(1);
